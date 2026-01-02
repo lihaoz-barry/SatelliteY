@@ -63,11 +63,24 @@ run_checkin_cycle() {
     
     # Step 1: 发送 WoL 唤醒
     log "Step 1: 发送 Wake-on-LAN..."
-    if command -v wolwin &> /dev/null; then
+    
+    # 尝试加载用户的 alias 定义
+    if [ -f "$HOME/.bashrc" ]; then
+        shopt -s expand_aliases 2>/dev/null
+        source "$HOME/.bashrc" 2>/dev/null
+    fi
+    
+    if command -v wolwin &> /dev/null || type wolwin &> /dev/null; then
         wolwin
         log_success "WoL 包已发送"
+    elif [ -f "$HOME/.bashrc" ] && grep -q "alias wolwin" "$HOME/.bashrc"; then
+        # 直接执行 alias 定义的命令
+        eval $(grep "alias wolwin" "$HOME/.bashrc" | sed "s/alias wolwin=//;s/'//g;s/\"//g")
+        log_success "WoL 包已发送 (通过 alias)"
     else
-        log_warning "wolwin 命令未找到，跳过唤醒"
+        log_warning "wolwin 命令未找到"
+        log_warning "请检查你的 ~/.bashrc 中是否有正确的 alias 定义"
+        log_warning "或者直接运行: wakeonlan <MAC地址>"
     fi
     
     # Step 2: 等待系统启动
