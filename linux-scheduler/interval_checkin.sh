@@ -19,7 +19,7 @@ WINDOWS_IP="192.168.0.147"
 COMET_PORT="5000"
 COMET_BASE_URL="http://${WINDOWS_IP}:${COMET_PORT}"
 DAILY_CHECKIN_INSTRUCTION="/1mu3"
-WAKE_WAIT_SECONDS=90                    # 唤醒后等待时间
+WAKE_WAIT_SECONDS=20                    # 唤醒后等待时间（1分钟）
 
 # 从环境变量读取 API Key
 COMET_API_KEY="${COMET_API_KEY:-my-secret-password-123}"
@@ -45,6 +45,21 @@ log_error() {
 
 log_warning() {
     echo -e "${YELLOW}[$(date '+%Y-%m-%d %H:%M:%S')] ⚠️  $1${NC}"
+}
+
+# 实时倒计时显示
+countdown() {
+    local seconds=$1
+    local message="${2:-等待中}"
+    
+    while [ $seconds -gt 0 ]; do
+        local mins=$((seconds / 60))
+        local secs=$((seconds % 60))
+        printf "\r${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} ⏱️  ${message}: %02d:%02d 剩余 " $mins $secs
+        sleep 1
+        seconds=$((seconds - 1))
+    done
+    printf "\r${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} ⏱️  ${message}: 00:00 完成!      \n"
 }
 
 # 检查服务是否在线
@@ -146,16 +161,19 @@ main() {
     # 捕获 Ctrl+C
     trap 'echo ""; log_warning "收到终止信号，正在退出..."; exit 0' SIGINT SIGTERM
     
+    # 首次执行前也等待
+    log ""
+    log "首次执行将在 ${INTERVAL_MINUTES} 分钟后开始..."
+    log "按 Ctrl+C 终止..."
+    countdown $interval_seconds "首次执行倒计时"
+    
     while true; do
         cycle=$((cycle + 1))
         run_checkin_cycle $cycle
         
         log ""
-        log "下次执行: ${INTERVAL_MINUTES} 分钟后 ($(date -d "+${INTERVAL_MINUTES} minutes" '+%H:%M:%S' 2>/dev/null || date -v+${INTERVAL_MINUTES}M '+%H:%M:%S'))"
         log "按 Ctrl+C 终止..."
-        log ""
-        
-        sleep $interval_seconds
+        countdown $interval_seconds "下次执行倒计时"
     done
 }
 
