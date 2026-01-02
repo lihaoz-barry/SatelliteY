@@ -1,0 +1,34 @@
+[Unit]
+Description=Daily Check-in Timer - Production (every day at scheduled time)
+Requires=daily-checkin.service
+
+[Timer]
+# =============================================================================
+# 生产模式定时配置
+# =============================================================================
+# 
+# 格式: DayOfWeek Year-Month-Day Hour:Minute:Second
+# 
+# 常用示例:
+#   *-*-* 02:00:00        每天凌晨 2:00
+#   *-*-* 08:00:00        每天早上 8:00
+#   Mon,Wed,Fri 02:00:00  每周一、三、五 凌晨 2:00
+#   *-*-01 02:00:00       每月1号 凌晨 2:00
+#
+# 建议：选择你的 PC 通常关闭/睡眠的时间段，让 WoL 唤醒后执行
+# =============================================================================
+
+OnCalendar=*-*-* 02:00:00
+
+# 如果错过了计划时间（设备关机），下次启动时补执行
+Persistent=true
+
+# 随机延迟 0-5 分钟，避免精确时间点的资源争用
+RandomizedDelaySec=300
+
+# 时区设置（可选，默认使用系统时区）
+# 如果 DietPi 和你的预期时区不同，在这里指定
+# Timezone=America/Chicago
+
+[Install]
+WantedBy=timers.target

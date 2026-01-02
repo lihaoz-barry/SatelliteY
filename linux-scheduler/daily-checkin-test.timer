@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily Check-in Timer - Test Mode (1 minute delay)
+Requires=daily-checkin.service
+
+[Timer]
+# 测试模式：1分钟后运行一次
+OnActiveSec=1min
+
+# 不设置 Persistent，测试完成后手动禁用
+
+[Install]
+WantedBy=timers.target

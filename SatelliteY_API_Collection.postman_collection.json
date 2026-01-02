@@ -1,0 +1,187 @@
+{
+	"info": {
+		"_postman_id": "satellitey-api-collection-2026",
+		"name": "SatelliteY Backend API",
+		"description": "Postman Collection for SatelliteY Minimal Backend API.\n\n## Server Configuration\nThe backend runs on `0.0.0.0:5000`, accessible from:\n- Localhost: `http://localhost:5000`\n- LAN IP: `http://192.168.0.147:5000`\n\n## Endpoints\n- Health Check\n- Execute AI Task\n- Get Task Status",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "健康检查端点 - 验证后端服务是否正常运行"
+					},
+					"response": [
+						{
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/health",
+									"host": ["{{base_url}}"],
+									"path": ["health"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"status\": \"ok\",\n    \"message\": \"Backend is running\",\n    \"timestamp\": \"2026-01-01T22:30:45.123456\",\n    \"hostname\": \"YOUR-PC-NAME\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "AI Execution",
+			"item": [
+				{
+					"name": "Execute AI Task",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"instruction\": \"Your AI instruction here\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/execute/ai",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"execute",
+								"ai"
+							]
+						},
+						"description": "执行 AI 任务 - 发送指令到后端进行处理"
+					},
+					"response": [
+						{
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"instruction\": \"Test instruction\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/execute/ai",
+									"host": ["{{base_url}}"],
+									"path": ["execute", "ai"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"success\": true,\n    \"task_id\": \"test-1\",\n    \"instruction_received\": \"Test instruction\",\n    \"message\": \"Task queued successfully! This is request #1\",\n    \"timestamp\": \"2026-01-01T22:30:45.123456\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Task Status",
+			"item": [
+				{
+					"name": "Get Task Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/status/{{task_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"status",
+								"{{task_id}}"
+							]
+						},
+						"description": "查询任务状态 - 使用 task_id 获取任务执行结果"
+					},
+					"response": [
+						{
+							"name": "Success Response",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/status/test-1",
+									"host": ["{{base_url}}"],
+									"path": ["status", "test-1"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"body": "{\n    \"task_id\": \"test-1\",\n    \"status\": \"done\",\n    \"result\": \"Test task completed successfully\",\n    \"timestamp\": \"2026-01-01T22:30:45.123456\"\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://192.168.0.147:5000",
+			"type": "string"
+		},
+		{
+			"key": "task_id",
+			"value": "test-1",
+			"type": "string"
+		}
+	]
+}
