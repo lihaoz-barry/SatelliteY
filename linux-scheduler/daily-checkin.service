@@ -1,18 +1,16 @@
 [Unit]
-Description=Daily Check-in Service - Wake Windows PC and Execute Check-in
+Description=Daily Check-in Service - Wake Windows PC and Execute Check-in Tasks
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/opt/satellite-y/daily_checkin.sh
+ExecStart=/opt/satellite-y/daily_tasks.sh
 User=dietpi
 Group=dietpi
 
 # 环境变量配置（可选）
-# 如果需要 API Key，在这里配置或使用 EnvironmentFile
 # Environment="COMET_API_KEY=your-api-key-here"
-# EnvironmentFile=/etc/satellite-y/config.env
 
 # 日志
 StandardOutput=journal
