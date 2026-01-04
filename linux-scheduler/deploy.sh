@@ -37,7 +37,13 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # 配置
-REPO_DIR="${HOME}/SatelliteY"
+# Use SUDO_USER's home if running via sudo, otherwise current user's home
+if [[ -n "$SUDO_USER" ]]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+else
+    USER_HOME="$HOME"
+fi
+REPO_DIR="${USER_HOME}/SatelliteY"
 SOURCE_DIR="${REPO_DIR}/linux-scheduler"
 DEPLOY_DIR="/opt/satellite-y"
 BACKUP_DIR="/opt/satellite-y/backups"
