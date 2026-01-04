@@ -455,6 +455,11 @@ log_info "停止现有定时器..."
 sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
 log_success "定时器已停止"
 
+log_info "清除定时器状态（防止补执行）..."
+sudo systemctl reset-failed ${SERVICE_NAME}.timer 2>/dev/null || true
+sudo systemctl clean --what=state ${SERVICE_NAME}.timer 2>/dev/null || true
+log_success "状态已清除"
+
 log_info "重载 systemd 配置..."
 sudo systemctl daemon-reload
 log_success "daemon-reload 完成"
