@@ -187,28 +187,29 @@ execute_task() {
     
     local url="${COMET_BASE_URL}${endpoint}"
     local response
+    local http_code
     
-    if [[ "$endpoint" == "/execute/ai" ]]; then
-        response=$(curl -s -X POST "$url" \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: ${COMET_API_KEY}" \
-            -d "{\"instruction\": \"${instruction}\"}" 2>&1)
-    elif [[ "$endpoint" == "/execute/url" ]]; then
-        response=$(curl -s -X POST "$url" \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: ${COMET_API_KEY}" \
-            -d "{\"url\": \"${instruction}\"}" 2>&1)
-    else
-        log_error "未知端点类型: ${endpoint}"
-        return 1
-    fi
+    # 直接发送请求到后端，不做端点验证
+    # 后端自行处理请求的有效性
+    response=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: ${COMET_API_KEY}" \
+        -d "{\"instruction\": \"${instruction}\"}" 2>&1)
     
-    if echo "$response" | grep -q "task_id"; then
-        local task_id=$(echo "$response" | grep -o '"task_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
-        log_success "任务已提交 (ID: ${task_id})"
+    # 分离响应体和状态码
+    http_code=$(echo "$response" | tail -n1)
+    response=$(echo "$response" | sed '$d')
+    
+    # 记录响应
+    log "  HTTP 状态: ${http_code}"
+    log "  响应: ${response}"
+    
+    # 简单判断：2xx 状态码视为成功
+    if [[ "$http_code" =~ ^2 ]]; then
+        log_success "请求成功"
         return 0
     else
-        log_error "任务提交失败: ${response}"
+        log_error "请求失败 (HTTP ${http_code})"
         return 1
     fi
 }
