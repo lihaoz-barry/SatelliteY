@@ -20,8 +20,10 @@ Requires=daily-checkin.service
 
 OnCalendar=*-*-* 02:00:00
 
-# 如果错过了计划时间（设备关机），下次启动时补执行
-Persistent=true
+# 如果错过了计划时间（设备关机），下次启动时是否补执行
+# true = 会补执行（可能导致部署后立即执行）
+# false = 不补执行，只等下一个计划时间（推荐）
+Persistent=false
 
 # 随机延迟 0-5 分钟，避免精确时间点的资源争用
 RandomizedDelaySec=300
