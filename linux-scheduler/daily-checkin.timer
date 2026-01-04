@@ -1,6 +1,5 @@
 [Unit]
 Description=Daily Check-in Timer - Production (every day at scheduled time)
-Requires=daily-checkin.service
 
 [Timer]
 # =============================================================================
@@ -18,7 +17,7 @@ Requires=daily-checkin.service
 # 建议：选择你的 PC 通常关闭/睡眠的时间段，让 WoL 唤醒后执行
 # =============================================================================
 
-OnCalendar=*-*-* 18:40:00
+OnCalendar=*-*-* 20:00:00
 
 # 如果错过了计划时间（设备关机），下次启动时是否补执行
 # true = 会补执行（可能导致部署后立即执行）
