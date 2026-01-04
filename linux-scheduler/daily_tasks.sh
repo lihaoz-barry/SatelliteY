@@ -36,6 +36,7 @@ COMET_BASE_URL="http://${WINDOWS_IP}:${COMET_PORT}"
 # 运行模式
 SKIP_WAKE=false
 DRY_RUN=false
+FORCE_RUN=false
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -48,12 +49,17 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --force|-f)
+            FORCE_RUN=true
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --skip-wake, -s  跳过 WoL 唤醒"
             echo "  --dry-run, -d    模拟运行"
+            echo "  --force, -f      强制运行（忽略今日已执行检查）"
             echo "  --help, -h       显示帮助"
             exit 0
             ;;
@@ -63,6 +69,34 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# ==============================================================================
+# 每日执行锁检查（防止 timer 重启时重复执行）
+# ==============================================================================
+# 问题背景：systemd timer 在 stop/start 后会丢失内存状态，
+# 导致它认为今天还没执行过，从而立即触发执行。
+# 解决方案：使用锁文件记录今天是否已执行。
+
+TODAY=$(date '+%Y-%m-%d')
+LOCK_DIR="/tmp/satellite-y"
+LOCK_FILE="${LOCK_DIR}/daily-checkin-${TODAY}.lock"
+
+# 确保锁目录存在
+mkdir -p "$LOCK_DIR"
+
+if [[ "$FORCE_RUN" == "false" ]] && [[ -f "$LOCK_FILE" ]]; then
+    LOCK_TIME=$(cat "$LOCK_FILE" 2>/dev/null || echo "unknown")
+    echo "=============================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏭️  今日任务已执行，跳过"
+    echo "  锁文件: $LOCK_FILE"
+    echo "  执行时间: $LOCK_TIME"
+    echo "  如需强制执行，请使用: $0 --force"
+    echo "=============================================="
+    exit 0
+fi
+
+# 记录执行时间到锁文件
+echo "$(date '+%Y-%m-%d %H:%M:%S')" > "$LOCK_FILE"
 
 # 确保日志目录存在
 mkdir -p "$LOG_DIR"

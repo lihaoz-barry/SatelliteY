@@ -441,42 +441,36 @@ done
 # ------------------------------------------------------------------------------
 log_header "Step 5: 重启 Systemd 服务"
 
-# 策略说明：
-# systemd timer 在 start 时可能会检查是否「错过」了今天的执行时间，
-# 即使 Persistent=false，某些情况下仍可能触发立即执行。
-# 解决方案：先 mask service 使其无法启动，等 timer 稳定后再 unmask。
+# 防止立即执行的双重策略：
+# 1. 创建 stamp 文件，告诉 systemd timer "今天已执行"
+# 2. daily_tasks.sh 中的锁文件检查（兜底保护）
+# 这两层保护确保部署后不会意外执行任务
 
 log_info "停止现有定时器和服务..."
 sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
 sudo systemctl stop ${SERVICE_NAME}.service 2>/dev/null || true
 log_success "定时器和服务已停止"
 
-log_info "临时屏蔽服务（防止部署期间被触发）..."
-sudo systemctl mask ${SERVICE_NAME}.service 2>/dev/null || true
-log_success "服务已屏蔽"
-
-log_info "清除定时器状态..."
+log_info "清除失败状态..."
 sudo systemctl reset-failed ${SERVICE_NAME}.timer 2>/dev/null || true
 sudo systemctl reset-failed ${SERVICE_NAME}.service 2>/dev/null || true
-# 删除 timer 的状态文件，确保不会"记住"上次的执行状态
-sudo rm -f /var/lib/systemd/timers/stamp-${SERVICE_NAME}.timer 2>/dev/null || true
 log_success "状态已清除"
 
 log_info "重载 systemd 配置..."
 sudo systemctl daemon-reload
 log_success "daemon-reload 完成"
 
+# ★★★ 关键步骤：创建 stamp 文件，标记"今天已执行" ★★★
+# 这会告诉 systemd timer：今天的执行已经完成，不需要再触发
+# 没有这个文件，systemd 会认为"今天还没执行过"并立即触发
+log_info "创建 stamp 文件（防止立即触发执行）..."
+sudo mkdir -p /var/lib/systemd/timers
+sudo touch /var/lib/systemd/timers/stamp-${SERVICE_NAME}.timer
+log_success "stamp 文件已创建"
+
 log_info "启动定时器..."
 sudo systemctl start ${SERVICE_NAME}.timer
-log_success "${SERVICE_NAME}.timer 已启动"
-
-# 等待一小段时间让 systemd 稳定，确保 timer 不会立即触发
-log_info "等待 2 秒确保定时器稳定..."
-sleep 2
-
-log_info "取消服务屏蔽（恢复正常调度）..."
-sudo systemctl unmask ${SERVICE_NAME}.service
-log_success "服务已恢复正常，将在下次计划时间执行"
+log_success "${SERVICE_NAME}.timer 已启动，将在下次计划时间（明天 18:40）执行"
 
 # ------------------------------------------------------------------------------
 # Step 6: 验证部署
