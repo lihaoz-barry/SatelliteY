@@ -451,13 +451,17 @@ done
 # ------------------------------------------------------------------------------
 log_header "Step 5: 重启 Systemd 服务"
 
+log_info "停止现有定时器..."
+sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
+log_success "定时器已停止"
+
 log_info "重载 systemd 配置..."
 sudo systemctl daemon-reload
 log_success "daemon-reload 完成"
 
-log_info "重启定时器..."
-sudo systemctl restart ${SERVICE_NAME}.timer
-log_success "${SERVICE_NAME}.timer 已重启"
+log_info "启动定时器（全新状态，无补执行）..."
+sudo systemctl start ${SERVICE_NAME}.timer
+log_success "${SERVICE_NAME}.timer 已启动"
 
 # ------------------------------------------------------------------------------
 # Step 6: 验证部署
