@@ -425,7 +425,7 @@ done
 log_info "复制 systemd 配置..."
 for file in "${SOURCE_DIR}"/*.service "${SOURCE_DIR}"/*.timer; do
     if [[ -f "$file" ]]; then
-        local filename=$(basename "$file")
+        filename=$(basename "$file")
         # 跳过测试用的 timer 文件，避免干扰生产环境
         if [[ "$filename" == *"-test.timer" ]]; then
             log_info "  跳过测试文件: $filename"
