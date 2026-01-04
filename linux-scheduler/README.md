@@ -1,16 +1,19 @@
-# Linux 每日签到定时服务
+# Linux Scheduled Services
 
-## 📁 文件说明
+## 📁 File Overview
 
-| 文件 | 用途 |
-|------|------|
-| `config.sh` | 配置文件（任务列表、IP、API Key） |
-| `daily_tasks.sh` | 生产脚本（每天定时执行） |
-| `interval_checkin.sh` | 测试脚本（循环执行） |
-| `deploy.sh` | **部署脚本**（一键更新，自动备份） |
-| `rollback.sh` | **回滚脚本**（恢复到之前的配置） |
-| `daily-checkin.timer` | systemd 定时器（每天 02:00） |
-| `daily-checkin.service` | systemd 服务配置 |
+| File | Purpose |
+|------|---------|
+| `config.sh` | Configuration (task list, IP, API Key) |
+| `daily_tasks.sh` | Daily check-in script (scheduled execution) |
+| `wake-antigravity.sh` | Wake PC and ensure Antigravity app is running |
+| `interval_checkin.sh` | Test script (loop execution) |
+| `deploy.sh` | **Deploy script** (one-click update, auto-backup) |
+| `rollback.sh` | **Rollback script** (restore previous config) |
+| `daily-checkin.timer` | systemd timer (daily at 02:00) |
+| `daily-checkin.service` | systemd service for daily check-in |
+| `wake-antigravity.timer` | systemd timer (daily at 08:50) |
+| `wake-antigravity.service` | systemd service for Antigravity app |
 
 ---
 
@@ -132,12 +135,129 @@ sudo systemctl restart daily-checkin.timer
 
 ---
 
-## 📊 查看日志
+## 📊 View Logs
 
 ```bash
-# systemd 日志
+# systemd logs
 sudo journalctl -u daily-checkin.service -f
+sudo journalctl -u wake-antigravity.service -f
 
-# 脚本日志
+# Script logs
 tail -f ~/logs/daily_checkin/*.log
+tail -f ~/logs/wake_antigravity/*.log
+```
+
+---
+
+## 🛠️ Setting Up Timer Services on Linux
+
+This section explains how to set up systemd timer services on any Linux system with systemd.
+
+### Understanding systemd Timers
+
+systemd timers consist of two files:
+- **`.timer`** - Defines when the service runs (schedule)
+- **`.service`** - Defines what runs (the actual command/script)
+
+### Step-by-Step Setup
+
+#### 1. Copy Files to System Directories
+
+```bash
+# Copy scripts to deployment directory
+sudo mkdir -p /opt/satellite-y
+sudo cp linux-scheduler/*.sh /opt/satellite-y/
+sudo chmod +x /opt/satellite-y/*.sh
+
+# Copy systemd unit files
+sudo cp linux-scheduler/*.service /etc/systemd/system/
+sudo cp linux-scheduler/*.timer /etc/systemd/system/
+```
+
+#### 2. Reload systemd Configuration
+
+```bash
+sudo systemctl daemon-reload
+```
+
+#### 3. Enable and Start Timers
+
+```bash
+# Enable timers to start on boot
+sudo systemctl enable daily-checkin.timer
+sudo systemctl enable wake-antigravity.timer
+
+# Start timers immediately
+sudo systemctl start daily-checkin.timer
+sudo systemctl start wake-antigravity.timer
+```
+
+#### 4. Verify Timer Status
+
+```bash
+# List all active timers
+systemctl list-timers --all
+
+# Check specific timer status
+sudo systemctl status wake-antigravity.timer
+sudo systemctl status daily-checkin.timer
+```
+
+### Modifying Timer Schedule
+
+Edit the timer file to change the schedule:
+
+```bash
+sudo nano /etc/systemd/system/wake-antigravity.timer
+```
+
+Common `OnCalendar` examples:
+```ini
+OnCalendar=*-*-* 08:50:00        # Every day at 8:50 AM
+OnCalendar=Mon-Fri 08:50:00      # Weekdays only at 8:50 AM
+OnCalendar=*-*-* 09:00,12:00:00  # Every day at 9:00 AM and 12:00 PM
+OnCalendar=hourly                # Every hour
+```
+
+After editing, reload and restart:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart wake-antigravity.timer
+```
+
+### Manual Testing
+
+```bash
+# Trigger service immediately (without waiting for timer)
+sudo systemctl start wake-antigravity.service
+
+# Watch logs in real-time
+sudo journalctl -u wake-antigravity.service -f
+
+# Test with dry-run (no actual execution)
+/opt/satellite-y/wake-antigravity.sh --dry-run
+```
+
+### Troubleshooting
+
+```bash
+# Check if timer is active
+systemctl is-active wake-antigravity.timer
+
+# View timer details
+systemctl show wake-antigravity.timer
+
+# Check service logs for errors
+sudo journalctl -u wake-antigravity.service --since "1 hour ago"
+
+# Reset failed state
+sudo systemctl reset-failed wake-antigravity.service
+```
+
+### Disabling a Timer
+
+```bash
+# Stop and disable timer
+sudo systemctl stop wake-antigravity.timer
+sudo systemctl disable wake-antigravity.timer
 ```

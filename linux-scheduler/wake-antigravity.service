@@ -1,0 +1,20 @@
+[Unit]
+Description=Wake Windows PC and Ensure Antigravity App is Running
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/satellite-y/wake-antigravity.sh
+User=dietpi
+Group=dietpi
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+# Timeout (5 minutes should be enough)
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

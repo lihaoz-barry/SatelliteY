@@ -43,6 +43,7 @@ DEPLOY_DIR="/opt/satellite-y"
 BACKUP_DIR="/opt/satellite-y/backups"
 SYSTEMD_DIR="/etc/systemd/system"
 SERVICE_NAME="daily-checkin"
+SERVICES=("daily-checkin" "wake-antigravity")
 
 # 参数解析
 DRY_RUN=false
@@ -191,22 +192,24 @@ fi
 # 检查是否已有服务运行
 echo ""
 echo -e "${BLUE}🔄 服务状态:${NC}"
-if [[ -f "${SYSTEMD_DIR}/${SERVICE_NAME}.timer" ]]; then
-    TIMER_STATUS=$(systemctl is-active ${SERVICE_NAME}.timer 2>/dev/null || echo "inactive")
-    if [[ "$TIMER_STATUS" == "active" ]]; then
-        log_success "定时器正在运行 (将更新现有服务)"
+for svc in "${SERVICES[@]}"; do
+    if [[ -f "${SYSTEMD_DIR}/${svc}.timer" ]]; then
+        TIMER_STATUS=$(systemctl is-active ${svc}.timer 2>/dev/null || echo "inactive")
+        if [[ "$TIMER_STATUS" == "active" ]]; then
+            log_success "${svc}.timer 正在运行 (将更新)"
+        else
+            log_info "${svc}.timer 未运行 (状态: $TIMER_STATUS)"
+        fi
     else
-        log_info "定时器未运行 (状态: $TIMER_STATUS)"
+        log_info "${svc}.timer 首次部署"
     fi
-else
-    log_info "首次部署 (定时器尚未安装)"
-fi
 
-# 检查是否有任务正在执行
-SERVICE_STATUS=$(systemctl is-active ${SERVICE_NAME}.service 2>/dev/null || echo "inactive")
-if [[ "$SERVICE_STATUS" == "active" ]]; then
-    log_warn "任务正在执行中!部署将在任务完成后生效"
-fi
+    # 检查是否有任务正在执行
+    SVC_STATUS=$(systemctl is-active ${svc}.service 2>/dev/null || echo "inactive")
+    if [[ "$SVC_STATUS" == "active" ]]; then
+        log_warn "${svc}.service 正在执行中!部署将在任务完成后生效"
+    fi
+done
 
 # 兼容性检查结果
 echo ""
@@ -442,13 +445,17 @@ done
 log_header "Step 5: 重启 Systemd 服务"
 
 log_info "停止现有定时器和服务..."
-sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
-sudo systemctl stop ${SERVICE_NAME}.service 2>/dev/null || true
+for svc in "${SERVICES[@]}"; do
+    sudo systemctl stop ${svc}.timer 2>/dev/null || true
+    sudo systemctl stop ${svc}.service 2>/dev/null || true
+done
 log_success "定时器和服务已停止"
 
 log_info "清除失败状态..."
-sudo systemctl reset-failed ${SERVICE_NAME}.timer 2>/dev/null || true
-sudo systemctl reset-failed ${SERVICE_NAME}.service 2>/dev/null || true
+for svc in "${SERVICES[@]}"; do
+    sudo systemctl reset-failed ${svc}.timer 2>/dev/null || true
+    sudo systemctl reset-failed ${svc}.service 2>/dev/null || true
+done
 log_success "状态已清除"
 
 log_info "重载 systemd 配置..."
@@ -456,8 +463,10 @@ sudo systemctl daemon-reload
 log_success "daemon-reload 完成"
 
 log_info "启动定时器..."
-sudo systemctl start ${SERVICE_NAME}.timer
-log_success "${SERVICE_NAME}.timer 已启动，将在下次计划时间执行"
+for svc in "${SERVICES[@]}"; do
+    sudo systemctl start ${svc}.timer
+    log_success "${svc}.timer 已启动"
+done
 
 # ------------------------------------------------------------------------------
 # Step 6: 验证部署
@@ -466,11 +475,14 @@ log_header "Step 6: 验证部署状态"
 
 echo ""
 echo -e "${BLUE}📊 定时器状态:${NC}"
-systemctl status ${SERVICE_NAME}.timer --no-pager | head -10 || true
+for svc in "${SERVICES[@]}"; do
+    echo -e "\n${CYAN}--- ${svc} ---${NC}"
+    systemctl status ${svc}.timer --no-pager | head -8 || true
+done
 
 echo ""
 echo -e "${BLUE}📅 下次执行时间:${NC}"
-systemctl list-timers ${SERVICE_NAME}.timer --no-pager | head -5 || true
+systemctl list-timers "${SERVICES[@]/%/.timer}" --no-pager | head -10 || true
 
 echo ""
 echo -e "${BLUE}📋 已部署的任务列表:${NC}"
@@ -484,20 +496,32 @@ ls -la "$DEPLOY_DIR"/*.sh 2>/dev/null | awk '{print "  " $9 " (" $5 " bytes)"}'
 echo ""
 log_header "部署完成"
 
-TIMER_STATUS=$(systemctl is-active ${SERVICE_NAME}.timer 2>/dev/null || echo "inactive")
-if [[ "$TIMER_STATUS" == "active" ]]; then
-    log_success "部署成功! 定时器正在运行"
+ALL_ACTIVE=true
+for svc in "${SERVICES[@]}"; do
+    TIMER_STATUS=$(systemctl is-active ${svc}.timer 2>/dev/null || echo "inactive")
+    if [[ "$TIMER_STATUS" == "active" ]]; then
+        log_success "${svc}.timer 状态: active"
+    else
+        log_error "${svc}.timer 状态: $TIMER_STATUS"
+        ALL_ACTIVE=false
+    fi
+done
+
+if [[ "$ALL_ACTIVE" == "true" ]]; then
     echo ""
     echo -e "${GREEN}✓ 所有更改已应用${NC}"
-    echo -e "${GREEN}✓ 定时器状态: active${NC}"
+    echo -e "${GREEN}✓ 所有定时器状态: active${NC}"
     echo -e "${GREEN}✓ 下次执行时将使用新配置${NC}"
     echo -e "${GREEN}✓ 备份位置: ${CURRENT_BACKUP_DIR:-无}${NC}"
     echo ""
     echo -e "${CYAN}如需回滚: sudo ./linux-scheduler/rollback.sh${NC}"
 else
-    log_error "部署可能存在问题,定时器状态: $TIMER_STATUS"
+    log_error "部分服务部署存在问题"
     echo ""
-    echo "请检查: sudo systemctl status ${SERVICE_NAME}.timer"
+    echo "请检查各服务状态:"
+    for svc in "${SERVICES[@]}"; do
+        echo "  sudo systemctl status ${svc}.timer"
+    done
     echo ""
     echo -e "${YELLOW}如需回滚到上一版本:${NC}"
     echo "  sudo ./linux-scheduler/rollback.sh"
