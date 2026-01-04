@@ -293,9 +293,9 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Step 2: Git Pull
+# Step 2: Git 状态信息（不自动 pull，请手动管理）
 # ------------------------------------------------------------------------------
-log_header "Step 2: 拉取最新代码"
+log_header "Step 2: Git 状态"
 
 cd "$REPO_DIR"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -303,23 +303,7 @@ CURRENT_COMMIT=$(git rev-parse --short HEAD)
 
 log_info "当前分支: $CURRENT_BRANCH"
 log_info "当前提交: $CURRENT_COMMIT"
-
-if [[ "$SKIP_PULL" == "true" ]]; then
-    log_warn "跳过 git pull (--skip-pull)"
-else
-    if [[ "$DRY_RUN" == "false" ]]; then
-        git fetch origin
-        git pull
-        NEW_COMMIT=$(git rev-parse --short HEAD)
-        if [[ "$CURRENT_COMMIT" != "$NEW_COMMIT" ]]; then
-            log_success "代码已更新: $CURRENT_COMMIT → $NEW_COMMIT"
-        else
-            log_info "代码已是最新"
-        fi
-    else
-        log_warn "DRY-RUN: 跳过 git pull"
-    fi
-fi
+log_info "（如需更新代码，请手动运行 git pull）"
 
 # ------------------------------------------------------------------------------
 # Step 3: 显示配置对比
@@ -437,27 +421,56 @@ for file in "${SOURCE_DIR}"/*.sh; do
     fi
 done
 
-# 复制 systemd 配置
+# 复制 systemd 配置（排除测试用的 timer）
 log_info "复制 systemd 配置..."
 for file in "${SOURCE_DIR}"/*.service "${SOURCE_DIR}"/*.timer; do
     if [[ -f "$file" ]]; then
+        filename=$(basename "$file")
+        # 跳过测试用的 timer 文件，避免干扰生产环境
+        if [[ "$filename" == *"-test.timer" ]]; then
+            log_info "  跳过测试文件: $filename"
+            continue
+        fi
         sudo cp "$file" "$SYSTEMD_DIR/"
-        log_success "  $(basename "$file")"
+        log_success "  $filename"
     fi
 done
 
 # ------------------------------------------------------------------------------
-# Step 5: 重启服务
+# Step 5: 重启服务（防止部署后立即触发执行）
 # ------------------------------------------------------------------------------
 log_header "Step 5: 重启 Systemd 服务"
+
+# 防止立即执行的双重策略：
+# 1. 创建 stamp 文件，告诉 systemd timer "今天已执行"
+# 2. daily_tasks.sh 中的锁文件检查（兜底保护）
+# 这两层保护确保部署后不会意外执行任务
+
+log_info "停止现有定时器和服务..."
+sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
+sudo systemctl stop ${SERVICE_NAME}.service 2>/dev/null || true
+log_success "定时器和服务已停止"
+
+log_info "清除失败状态..."
+sudo systemctl reset-failed ${SERVICE_NAME}.timer 2>/dev/null || true
+sudo systemctl reset-failed ${SERVICE_NAME}.service 2>/dev/null || true
+log_success "状态已清除"
 
 log_info "重载 systemd 配置..."
 sudo systemctl daemon-reload
 log_success "daemon-reload 完成"
 
-log_info "重启定时器..."
-sudo systemctl restart ${SERVICE_NAME}.timer
-log_success "${SERVICE_NAME}.timer 已重启"
+# ★★★ 关键步骤：创建 stamp 文件，标记"今天已执行" ★★★
+# 这会告诉 systemd timer：今天的执行已经完成，不需要再触发
+# 没有这个文件，systemd 会认为"今天还没执行过"并立即触发
+log_info "创建 stamp 文件（防止立即触发执行）..."
+sudo mkdir -p /var/lib/systemd/timers
+sudo touch /var/lib/systemd/timers/stamp-${SERVICE_NAME}.timer
+log_success "stamp 文件已创建"
+
+log_info "启动定时器..."
+sudo systemctl start ${SERVICE_NAME}.timer
+log_success "${SERVICE_NAME}.timer 已启动，将在下次计划时间（明天 18:40）执行"
 
 # ------------------------------------------------------------------------------
 # Step 6: 验证部署

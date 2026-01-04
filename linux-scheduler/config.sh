@@ -16,10 +16,10 @@ COMET_PORT="5000"
 COMET_API_KEY="${COMET_API_KEY:-my-secret-password-123}"
 
 # 唤醒等待时间（秒）- Windows 启动后等待 Comet TaskRunner 启动
-WAKE_WAIT_SECONDS=90
+WAKE_WAIT_SECONDS=30
 
 # 每个任务之间的间隔（秒）
-TASK_INTERVAL_SECONDS=30
+TASK_INTERVAL_SECONDS=10
 
 # 健康检查配置
 HEALTH_CHECK_RETRIES=10
@@ -31,12 +31,9 @@ HEALTH_CHECK_INTERVAL=10
 # ==============================================================================
 
 TASKS=(
-    "/execute/ai|/1mu3|一亩三分地 每日签到"
-    "/execute/ai|/iyf|IYF 每日任务"
+    "/execute/ai_assistant|/1mu3|一亩三分地 每日签到"
+    "/execute/ai_assistant|/iyf|IYF 每日任务"
     # 添加更多任务示例:
-    # "/execute/ai|/taobao|淘宝签到"
-    # "/execute/ai|/jd|京东签到"
-    # "/execute/url|https://example.com|打开网页"
 )
 
 # ==============================================================================

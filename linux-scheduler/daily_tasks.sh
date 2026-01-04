@@ -36,6 +36,7 @@ COMET_BASE_URL="http://${WINDOWS_IP}:${COMET_PORT}"
 # 运行模式
 SKIP_WAKE=false
 DRY_RUN=false
+FORCE_RUN=false
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -48,12 +49,17 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --force|-f)
+            FORCE_RUN=true
+            shift
+            ;;
         --help|-h)
             echo "Usage: $0 [OPTIONS]"
             echo ""
             echo "Options:"
             echo "  --skip-wake, -s  跳过 WoL 唤醒"
             echo "  --dry-run, -d    模拟运行"
+            echo "  --force, -f      强制运行（忽略今日已执行检查）"
             echo "  --help, -h       显示帮助"
             exit 0
             ;;
@@ -63,6 +69,34 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# ==============================================================================
+# 每日执行锁检查（防止 timer 重启时重复执行）
+# ==============================================================================
+# 问题背景：systemd timer 在 stop/start 后会丢失内存状态，
+# 导致它认为今天还没执行过，从而立即触发执行。
+# 解决方案：使用锁文件记录今天是否已执行。
+
+TODAY=$(date '+%Y-%m-%d')
+LOCK_DIR="/tmp/satellite-y"
+LOCK_FILE="${LOCK_DIR}/daily-checkin-${TODAY}.lock"
+
+# 确保锁目录存在
+mkdir -p "$LOCK_DIR"
+
+if [[ "$FORCE_RUN" == "false" ]] && [[ -f "$LOCK_FILE" ]]; then
+    LOCK_TIME=$(cat "$LOCK_FILE" 2>/dev/null || echo "unknown")
+    echo "=============================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ⏭️  今日任务已执行，跳过"
+    echo "  锁文件: $LOCK_FILE"
+    echo "  执行时间: $LOCK_TIME"
+    echo "  如需强制执行，请使用: $0 --force"
+    echo "=============================================="
+    exit 0
+fi
+
+# 记录执行时间到锁文件
+echo "$(date '+%Y-%m-%d %H:%M:%S')" > "$LOCK_FILE"
 
 # 确保日志目录存在
 mkdir -p "$LOG_DIR"
@@ -187,28 +221,29 @@ execute_task() {
     
     local url="${COMET_BASE_URL}${endpoint}"
     local response
+    local http_code
     
-    if [[ "$endpoint" == "/execute/ai" ]]; then
-        response=$(curl -s -X POST "$url" \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: ${COMET_API_KEY}" \
-            -d "{\"instruction\": \"${instruction}\"}" 2>&1)
-    elif [[ "$endpoint" == "/execute/url" ]]; then
-        response=$(curl -s -X POST "$url" \
-            -H "Content-Type: application/json" \
-            -H "X-API-Key: ${COMET_API_KEY}" \
-            -d "{\"url\": \"${instruction}\"}" 2>&1)
-    else
-        log_error "未知端点类型: ${endpoint}"
-        return 1
-    fi
+    # 直接发送请求到后端，不做端点验证
+    # 后端自行处理请求的有效性
+    response=$(curl -s -w "\n%{http_code}" -X POST "$url" \
+        -H "Content-Type: application/json" \
+        -H "X-API-Key: ${COMET_API_KEY}" \
+        -d "{\"instruction\": \"${instruction}\"}" 2>&1)
     
-    if echo "$response" | grep -q "task_id"; then
-        local task_id=$(echo "$response" | grep -o '"task_id"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)"$/\1/')
-        log_success "任务已提交 (ID: ${task_id})"
+    # 分离响应体和状态码
+    http_code=$(echo "$response" | tail -n1)
+    response=$(echo "$response" | sed '$d')
+    
+    # 记录响应
+    log "  HTTP 状态: ${http_code}"
+    log "  响应: ${response}"
+    
+    # 简单判断：2xx 状态码视为成功
+    if [[ "$http_code" =~ ^2 ]]; then
+        log_success "请求成功"
         return 0
     else
-        log_error "任务提交失败: ${response}"
+        log_error "请求失败 (HTTP ${http_code})"
         return 1
     fi
 }
