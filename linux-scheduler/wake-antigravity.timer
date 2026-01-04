@@ -1,0 +1,33 @@
+[Unit]
+Description=Wake Antigravity Timer - Every morning at 8:50 AM
+
+[Timer]
+# =============================================================================
+# Timer Configuration - Wake PC and launch Antigravity at 8:50 AM
+# =============================================================================
+#
+# Format: DayOfWeek Year-Month-Day Hour:Minute:Second
+#
+# Examples:
+#   *-*-* 08:50:00        Every day at 8:50 AM
+#   Mon-Fri 08:50:00      Weekdays only at 8:50 AM
+#   *-*-* 09:00:00        Every day at 9:00 AM
+#
+# =============================================================================
+
+OnCalendar=*-*-* 08:50:00
+
+# If missed scheduled time (device was off), whether to run on next boot
+# true = will run on boot (may execute immediately after deploy)
+# false = skip and wait for next scheduled time (recommended)
+Persistent=false
+
+# Random delay 0-2 minutes to avoid exact time resource contention
+RandomizedDelaySec=120
+
+# Timezone setting (optional, defaults to system timezone)
+# Uncomment and set if DietPi timezone differs from expected
+# Timezone=America/Chicago
+
+[Install]
+WantedBy=timers.target
