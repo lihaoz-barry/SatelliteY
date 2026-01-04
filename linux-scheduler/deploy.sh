@@ -293,9 +293,9 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Step 2: Git Pull
+# Step 2: Git 状态信息（不自动 pull，请手动管理）
 # ------------------------------------------------------------------------------
-log_header "Step 2: 拉取最新代码"
+log_header "Step 2: Git 状态"
 
 cd "$REPO_DIR"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -303,23 +303,7 @@ CURRENT_COMMIT=$(git rev-parse --short HEAD)
 
 log_info "当前分支: $CURRENT_BRANCH"
 log_info "当前提交: $CURRENT_COMMIT"
-
-if [[ "$SKIP_PULL" == "true" ]]; then
-    log_warn "跳过 git pull (--skip-pull)"
-else
-    if [[ "$DRY_RUN" == "false" ]]; then
-        git fetch origin
-        git pull
-        NEW_COMMIT=$(git rev-parse --short HEAD)
-        if [[ "$CURRENT_COMMIT" != "$NEW_COMMIT" ]]; then
-            log_success "代码已更新: $CURRENT_COMMIT → $NEW_COMMIT"
-        else
-            log_info "代码已是最新"
-        fi
-    else
-        log_warn "DRY-RUN: 跳过 git pull"
-    fi
-fi
+log_info "（如需更新代码，请手动运行 git pull）"
 
 # ------------------------------------------------------------------------------
 # Step 3: 显示配置对比
@@ -437,36 +421,62 @@ for file in "${SOURCE_DIR}"/*.sh; do
     fi
 done
 
-# 复制 systemd 配置
+# 复制 systemd 配置（排除测试用的 timer）
 log_info "复制 systemd 配置..."
 for file in "${SOURCE_DIR}"/*.service "${SOURCE_DIR}"/*.timer; do
     if [[ -f "$file" ]]; then
+        local filename=$(basename "$file")
+        # 跳过测试用的 timer 文件，避免干扰生产环境
+        if [[ "$filename" == *"-test.timer" ]]; then
+            log_info "  跳过测试文件: $filename"
+            continue
+        fi
         sudo cp "$file" "$SYSTEMD_DIR/"
-        log_success "  $(basename "$file")"
+        log_success "  $filename"
     fi
 done
 
 # ------------------------------------------------------------------------------
-# Step 5: 重启服务
+# Step 5: 重启服务（防止部署后立即触发执行）
 # ------------------------------------------------------------------------------
 log_header "Step 5: 重启 Systemd 服务"
 
-log_info "停止现有定时器..."
-sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
-log_success "定时器已停止"
+# 策略说明：
+# systemd timer 在 start 时可能会检查是否「错过」了今天的执行时间，
+# 即使 Persistent=false，某些情况下仍可能触发立即执行。
+# 解决方案：先 mask service 使其无法启动，等 timer 稳定后再 unmask。
 
-log_info "清除定时器状态（防止补执行）..."
+log_info "停止现有定时器和服务..."
+sudo systemctl stop ${SERVICE_NAME}.timer 2>/dev/null || true
+sudo systemctl stop ${SERVICE_NAME}.service 2>/dev/null || true
+log_success "定时器和服务已停止"
+
+log_info "临时屏蔽服务（防止部署期间被触发）..."
+sudo systemctl mask ${SERVICE_NAME}.service 2>/dev/null || true
+log_success "服务已屏蔽"
+
+log_info "清除定时器状态..."
 sudo systemctl reset-failed ${SERVICE_NAME}.timer 2>/dev/null || true
-sudo systemctl clean --what=state ${SERVICE_NAME}.timer 2>/dev/null || true
+sudo systemctl reset-failed ${SERVICE_NAME}.service 2>/dev/null || true
+# 删除 timer 的状态文件，确保不会"记住"上次的执行状态
+sudo rm -f /var/lib/systemd/timers/stamp-${SERVICE_NAME}.timer 2>/dev/null || true
 log_success "状态已清除"
 
 log_info "重载 systemd 配置..."
 sudo systemctl daemon-reload
 log_success "daemon-reload 完成"
 
-log_info "启动定时器（全新状态，无补执行）..."
+log_info "启动定时器..."
 sudo systemctl start ${SERVICE_NAME}.timer
 log_success "${SERVICE_NAME}.timer 已启动"
+
+# 等待一小段时间让 systemd 稳定，确保 timer 不会立即触发
+log_info "等待 2 秒确保定时器稳定..."
+sleep 2
+
+log_info "取消服务屏蔽（恢复正常调度）..."
+sudo systemctl unmask ${SERVICE_NAME}.service
+log_success "服务已恢复正常，将在下次计划时间执行"
 
 # ------------------------------------------------------------------------------
 # Step 6: 验证部署
